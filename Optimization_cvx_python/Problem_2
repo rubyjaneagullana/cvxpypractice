@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Thu May 29 21:59:55 2025
+
+@author: ruby
+"""
+
+import numpy as np
+import cvxpy as cp
+from matplotlib import pyplot as plt
+
+
+num_antenna=40
+N =np.arange(40) #number of antenna
+f = 2.4e9
+c = 3e8
+wavelen = c/f
+d = wavelen/2 #antenna spacing
+angle_des = 20
+angle_inter = 40
+theta_l = 10
+theta_u = 30
+
+steering_des = np.exp(-1j*2*np.pi*d* N * np.sin(angle_des)/wavelen)
+steering_int = np.exp(-1j*2*np.pi*d*N*np.sin(angle_inter)/wavelen)
+
+
+
+#problem number 2
+
+#loop over angles in lower sector
+P_matrix = np.zeros((num_antenna,num_antenna), dtype = complex)
+for i in range(-90,theta_l+1):
+    phase = np.exp(-1j*2*np.pi*N*d*np.sin(np.deg2rad(i))/wavelen)
+    a= phase[:,None]
+    a= a @ a.conj().T
+    P_matrix += a
+# loop over angles in upper sector   
+for i in range(theta_u,91):
+    phase = np.exp(-1j*2*np.pi*d*N*np.sin(np.deg2rad(i))/wavelen)
+    a = phase[:,None]
+    a = a @ a.conj().T
+    P_matrix += a 
+    
+    
+    
+w= cp.Variable(num_antenna,complex = True)
+objective = cp.Minimize(cp.quad_form(w,P_matrix))
+constraints = [w.conj().T @ steering_des == 1 ]
+problem = cp.Problem(objective,constraints)
+result = problem.solve()
+
+print("Optimal value:",result)
+print("Optimal w",w.value)
+
+
+#plot
+angles = np.arange(-90,90) # r0w 180
+N = N[:,None] #[40,1]
+phase = -1j*2*np.pi*d/wavelen*N #40,1
+angle=np.sin(np.deg2rad(angles))[None,:] #180
+a= phase @ angle #40,180
+a = np.exp(a).T #180,40
+
+
+W_opt = w.value #40,1
+responses = a @ W_opt.conj()
+
+response = 10 * np.log10 (np.abs(responses)**2)
+
+plt.figure()
+plt.plot(angles,response,color='orange')
+plt.title("Minimizing the average sidelobe")
+plt.xlabel("angles (degree)")
+plt.ylabel("angle response(db)")
+plt.legend([r'$M = 40\ \theta_d = 20 \ \theta_u = 30 $'],loc=1)
+plt.show()
+
+
+
